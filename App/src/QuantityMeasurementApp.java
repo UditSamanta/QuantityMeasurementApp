@@ -1,158 +1,141 @@
+import java.util.Objects;
+
+/**
+ * UC7: Addition with Target Unit Specification
+ * This implementation provides a robust, immutable way to perform unit addition
+ * while allowing the caller to explicitly define the output unit.
+ */
+
+// 1. Enum to manage units and their conversion factors relative to FEET
+enum LengthUnit {
+    INCHES(1.0 / 12.0),
+    FEET(1.0),
+    YARDS(3.0),
+    CENTIMETERS(1.0 / 30.48);
+
+    public final double conversionFactor;
+
+    LengthUnit(double conversionFactor) {
+        this.conversionFactor = conversionFactor;
+    }
+}
+
+// 2. Main Quantity class implementing immutability and addition logic
+class QuantityLength {
+    private final double value;
+    private final LengthUnit unit;
+
+    public QuantityLength(double value, LengthUnit unit) {
+        if (unit == null) {
+            throw new IllegalArgumentException("Unit cannot be null.");
+        }
+        if (!Double.isFinite(value)) {
+            throw new IllegalArgumentException("Value must be a finite number.");
+        }
+        this.value = value;
+        this.unit = unit;
+    }
+
+    /**
+     * UC6: Implicit addition (defaults to the unit of 'this' object)
+     */
+    public QuantityLength add(QuantityLength other) {
+        return add(this, other, this.unit);
+    }
+
+    /**
+     * UC7: Explicit addition with target unit specification.
+     * This is the primary utility method that avoids code duplication (DRY).
+     */
+    public static QuantityLength add(QuantityLength l1, QuantityLength l2, LengthUnit targetUnit) {
+        // Validation
+        if (l1 == null || l2 == null || targetUnit == null) {
+            throw new IllegalArgumentException("Operands and target unit must not be null.");
+        }
+
+        // Convert both operands to base unit (FEET) and add
+        double val1InBase = l1.value * l1.unit.conversionFactor;
+        double val2InBase = l2.value * l2.unit.conversionFactor;
+        double sumInBase = val1InBase + val2InBase;
+
+        // Convert sum from base unit to the target unit
+        double convertedResult = sumInBase / targetUnit.conversionFactor;
+
+        // Apply rounding to 3 decimal places to handle floating point precision
+        double roundedResult = Math.round(convertedResult * 1000.0) / 1000.0;
+
+        return new QuantityLength(roundedResult, targetUnit);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        QuantityLength that = (QuantityLength) o;
+        // Use an epsilon for double comparison to account for precision limits
+        return Math.abs(that.value - this.value) < 0.001 && unit == that.unit;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value, unit);
+    }
+
+    @Override
+    public String toString() {
+        return "Quantity(" + value + ", " + unit + ")";
+    }
+
+    // Getters
+    public double getValue() { return value; }
+    public LengthUnit getUnit() { return unit; }
+}
+
+// 3. Driver App to demonstrate the Use Case requirements
 public class QuantityMeasurementApp {
-
-    // Base unit = FEET
-    enum LengthUnit {
-        FEET(1.0),
-        INCH(1.0 / 12.0),
-        YARD(3.0),
-        CENTIMETER(0.0328084);
-
-        private final double toFeetFactor;
-
-        LengthUnit(double toFeetFactor) {
-            this.toFeetFactor = toFeetFactor;
-        }
-
-        public double toFeet(double value) {
-            return value * toFeetFactor;
-        }
-
-        public double fromFeet(double feetValue) {
-            return feetValue / toFeetFactor;
-        }
-    }
-
-    // Immutable Quantity Class
-    static class QuantityLength {
-        private final double value;
-        private final LengthUnit unit;
-
-        public QuantityLength(double value, LengthUnit unit) {
-            if (!Double.isFinite(value)) {
-                throw new IllegalArgumentException("Invalid value");
-            }
-            if (unit == null) {
-                throw new IllegalArgumentException("Unit cannot be null");
-            }
-            this.value = value;
-            this.unit = unit;
-        }
-
-        public double getValue() {
-            return value;
-        }
-
-        public LengthUnit getUnit() {
-            return unit;
-        }
-
-        // Convert to base (feet)
-        private double toBaseUnit() {
-            return unit.toFeet(value);
-        }
-
-        // ============================
-        // ✅ ADDITION (Instance Method)
-        // ============================
-        public QuantityLength add(QuantityLength other) {
-            if (other == null) {
-                throw new IllegalArgumentException("Other quantity cannot be null");
-            }
-
-            double sumInFeet = this.toBaseUnit() + other.toBaseUnit();
-
-            // Convert back to this object's unit
-            double resultValue = unit.fromFeet(sumInFeet);
-
-            return new QuantityLength(resultValue, this.unit);
-        }
-
-        // ============================
-        // ✅ STATIC ADD (with target unit)
-        // ============================
-        public static QuantityLength add(QuantityLength q1,
-                                         QuantityLength q2,
-                                         LengthUnit targetUnit) {
-
-            if (q1 == null || q2 == null) {
-                throw new IllegalArgumentException("Operands cannot be null");
-            }
-            if (targetUnit == null) {
-                throw new IllegalArgumentException("Target unit cannot be null");
-            }
-
-            double sumInFeet = q1.toBaseUnit() + q2.toBaseUnit();
-            double resultValue = targetUnit.fromFeet(sumInFeet);
-
-            return new QuantityLength(resultValue, targetUnit);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-
-            QuantityLength other = (QuantityLength) obj;
-
-            double EPSILON = 1e-6;
-            return Math.abs(this.toBaseUnit() - other.toBaseUnit()) < EPSILON;
-        }
-
-        @Override
-        public int hashCode() {
-            return Double.hashCode(toBaseUnit());
-        }
-
-        @Override
-        public String toString() {
-            return value + " " + unit;
-        }
-    }
-
-    // ============================
-    // DEMO METHODS
-    // ============================
-    public static void demonstrateAddition(QuantityLength q1, QuantityLength q2) {
-        System.out.println(q1 + " + " + q2 + " = " + q1.add(q2));
-    }
-
-    public static void demonstrateAddition(QuantityLength q1,
-                                           QuantityLength q2,
-                                           LengthUnit targetUnit) {
-        System.out.println(q1 + " + " + q2 + " = "
-                + QuantityLength.add(q1, q2, targetUnit));
-    }
-
-    // ============================
-    // MAIN METHOD
-    // ============================
     public static void main(String[] args) {
+        System.out.println("--- UC7: Addition with Target Unit Specification ---");
 
-        QuantityLength f1 = new QuantityLength(1.0, LengthUnit.FEET);
-        QuantityLength i1 = new QuantityLength(12.0, LengthUnit.INCH);
-        QuantityLength y1 = new QuantityLength(1.0, LengthUnit.YARD);
-        QuantityLength cm1 = new QuantityLength(2.54, LengthUnit.CENTIMETER);
+        // Input: add(1.0 FEET, 12.0 INCHES) -> Target: FEET
+        printResult(new QuantityLength(1.0, LengthUnit.FEET),
+                new QuantityLength(12.0, LengthUnit.INCHES),
+                LengthUnit.FEET);
 
-        // Same unit
-        demonstrateAddition(f1, new QuantityLength(2.0, LengthUnit.FEET));
+        // Input: add(1.0 FEET, 12.0 INCHES) -> Target: INCHES
+        printResult(new QuantityLength(1.0, LengthUnit.FEET),
+                new QuantityLength(12.0, LengthUnit.INCHES),
+                LengthUnit.INCHES);
 
-        // Cross unit (result in first operand unit)
-        demonstrateAddition(f1, i1); // 1 ft + 12 in = 2 ft
+        // Input: add(1.0 FEET, 12.0 INCHES) -> Target: YARDS
+        printResult(new QuantityLength(1.0, LengthUnit.FEET),
+                new QuantityLength(12.0, LengthUnit.INCHES),
+                LengthUnit.YARDS);
 
-        // Reverse (result in inches)
-        demonstrateAddition(i1, f1); // 24 inches
+        // Input: add(36.0 INCHES, 1.0 YARDS) -> Target: FEET
+        printResult(new QuantityLength(36.0, LengthUnit.INCHES),
+                new QuantityLength(1.0, LengthUnit.YARDS),
+                LengthUnit.FEET);
 
-        // Yard + feet
-        demonstrateAddition(y1, f1); // 1 yard + 1 ft
+        // Input: add(2.54 CENTIMETERS, 1.0 INCHES) -> Target: CENTIMETERS
+        printResult(new QuantityLength(2.54, LengthUnit.CENTIMETERS),
+                new QuantityLength(1.0, LengthUnit.INCHES),
+                LengthUnit.CENTIMETERS);
 
-        // Centimeter + inch
-        demonstrateAddition(cm1, new QuantityLength(1.0, LengthUnit.INCH));
+        // Commutativity Check
+        QuantityLength q1 = new QuantityLength(5.0, LengthUnit.FEET);
+        QuantityLength q2 = new QuantityLength(-2.0, LengthUnit.FEET);
+        QuantityLength resA = QuantityLength.add(q1, q2, LengthUnit.INCHES);
+        QuantityLength resB = QuantityLength.add(q2, q1, LengthUnit.INCHES);
+        System.out.println("\nCommutativity Check (A+B == B+A): " + resA.equals(resB) + " -> " + resA);
+    }
 
-        // Using target unit explicitly
-        demonstrateAddition(f1, i1, LengthUnit.INCH);
-
-        // Edge cases
-        demonstrateAddition(f1, new QuantityLength(0.0, LengthUnit.INCH));
-        demonstrateAddition(f1, new QuantityLength(-2.0, LengthUnit.FEET));
+    private static void printResult(QuantityLength l1, QuantityLength l2, LengthUnit target) {
+        try {
+            QuantityLength result = QuantityLength.add(l1, l2, target);
+            System.out.printf("Input: add(%s, %s, %s) \nOutput: %s\n\n",
+                    l1, l2, target, result);
+        } catch (Exception e) {
+            System.out.println("Error: " + e.getMessage());
+        }
     }
 }
